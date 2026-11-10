@@ -37,8 +37,8 @@
     }
   }
 
-  // Fetch & Render Real-Time Timetable (Instantaneous 0ms)
-  function renderTimetable() {
+  // Fetch & Render Real-Time Timetable
+  async function renderTimetable(showLoading = true) {
     if (!currentClass || !currentExam) {
       if (timetableTitle) {
         timetableTitle.innerHTML = `<i class="fas fa-clipboard-list" style="margin-right: 8px; color: #ffd166;"></i> Select Class and Assessment to View Timetable`;
@@ -54,46 +54,13 @@
       timetableTitle.innerHTML = `<i class="fas fa-clipboard-list" style="margin-right: 8px; color: #ffd166;"></i> ${currentClass} - ${currentExam} Examination Schedule`;
     }
 
-    let rows = null;
-    let instructions = null;
+    // Show a clean loader while checking the database so it refreshes instead of flashing "Schedule Awaited"
+    if (showLoading) {
+      displayLoadingState();
+    }
 
-    // Check localStorage immediately (0ms)
     try {
-      const localSchedules = JSON.parse(localStorage.getItem('kj_real_schedules') || '[]');
-      const match = localSchedules.find(s =>
-        (s.academicYear === currentAcademicYear || !s.academicYear) &&
-        s.className === currentClass &&
-        s.examType === currentExam
-      );
-      if (match && match.timetable && match.timetable.length > 0) {
-        rows = match.timetable.map(s => ({
-          date: s.date || '',
-          day: s.day || '',
-          timing: s.time || s.timing || '09:30 AM - 11:30 AM',
-          subject: s.subject || s.subjectName || '',
-          portion: s.syllabus || s.portion || ''
-        }));
-        if (match.instructions) {
-          instructions = Array.isArray(match.instructions) ? match.instructions.join('\n') : match.instructions;
-        }
-      }
-    } catch (err) {}
-
-    // Display state immediately
-    displayScheduleState(rows, instructions);
-
-    // Background fetch from API
-    fetchScheduleApiAsync();
-  }
-
-  async function fetchScheduleApiAsync() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-      const res = await fetch(`/api/schedules?academicYear=${encodeURIComponent(currentAcademicYear)}&className=${encodeURIComponent(currentClass)}&examType=${encodeURIComponent(currentExam)}`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
+      const res = await fetch(`/api/schedules?academicYear=${encodeURIComponent(currentAcademicYear)}&className=${encodeURIComponent(currentClass)}&examType=${encodeURIComponent(currentExam)}`);
       if (res.ok) {
         const json = await res.json();
         const schedules = Array.isArray(json) ? json : (json.data || []);
@@ -110,10 +77,66 @@
             }));
             const instructions = schedule.instructions ? (Array.isArray(schedule.instructions) ? schedule.instructions.join('\n') : schedule.instructions) : null;
             displayScheduleState(rows, instructions);
+            return;
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('API fetch failed, checking local cache:', e);
+    }
+
+    // Fallback: check localStorage if offline
+    let localRows = null;
+    let localInstructions = null;
+    try {
+      const localSchedules = JSON.parse(localStorage.getItem('kj_real_schedules') || '[]');
+      const match = localSchedules.find(s =>
+        (s.academicYear === currentAcademicYear || !s.academicYear) &&
+        s.className === currentClass &&
+        s.examType === currentExam
+      );
+      if (match && match.timetable && match.timetable.length > 0) {
+        localRows = match.timetable.map(s => ({
+          date: s.date || '',
+          day: s.day || '',
+          timing: s.time || s.timing || '09:30 AM - 11:30 AM',
+          subject: s.subject || s.subjectName || '',
+          portion: s.syllabus || s.portion || ''
+        }));
+        if (match.instructions) {
+          localInstructions = Array.isArray(match.instructions) ? match.instructions.join('\n') : match.instructions;
+        }
+      }
+    } catch (err) {}
+
+    displayScheduleState(localRows, localInstructions);
+  }
+
+  function displayLoadingState() {
+    const responsiveContainer = document.querySelector('.timetable-table-responsive');
+    const whatsappBtn = document.getElementById('whatsappShareBtn');
+    if (whatsappBtn) whatsappBtn.style.display = 'none';
+    if (timetableTable) timetableTable.style.display = 'none';
+    if (examInstructionsBox) examInstructionsBox.style.display = 'none';
+
+    let emptyDiv = document.getElementById('timetableEmptyState');
+    if (!emptyDiv) {
+      emptyDiv = document.createElement('div');
+      emptyDiv.id = 'timetableEmptyState';
+      if (responsiveContainer) responsiveContainer.appendChild(emptyDiv);
+    }
+    emptyDiv.style.cssText = 'padding: 55px 24px; text-align: center; background: #ffffff; display: block;';
+    emptyDiv.innerHTML = `
+      <div style="max-width: 480px; margin: 0 auto;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2.5rem; color: #0a4f8a; margin-bottom: 14px; display: inline-block;"></i>
+        <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; color: #0f1c2e; margin-bottom: 6px;">
+          Checking ${currentClass} (${currentExam}) Timetable...
+        </h4>
+        <p style="color: #64748b; font-size: 0.9rem; margin: 0;">
+          Fetching the latest examination schedule from the school server.
+        </p>
+      </div>
+    `;
   }
 
   function displayScheduleState(rows, instructions, isPrompt = false) {
@@ -170,12 +193,9 @@
           <h4 style="font-family: 'Fredoka', cursive; font-size: 1.35rem; font-weight: 700; color: #0f2c59; margin-bottom: 10px;">
             Schedule Awaited for ${currentClass} (${currentExam})
           </h4>
-          <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">
+          <p style="color: #64748b; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">
             The official examination timetable will be published here by the school administration once dates are finalized.
           </p>
-          <div style="display: inline-flex; align-items: center; gap: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 8px 18px; border-radius: 9999px; font-weight: 700; font-size: 0.85rem;">
-            <i class="fas fa-bolt" style="color: #16a34a;"></i> Instant real-time updates active
-          </div>
         </div>
       `;
     } else {

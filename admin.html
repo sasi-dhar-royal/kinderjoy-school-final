@@ -92,6 +92,12 @@
               <span>School Gallery</span>
             </button>
           </li>
+          <li class="dash-nav-item">
+            <button type="button" class="admin-tab-btn" data-tab="tabAccountSettings">
+              <i class="fas fa-user-cog"></i>
+              <span>Account Settings</span>
+            </button>
+          </li>
         </ul>
 
         <span class="dash-nav-label">General</span>
@@ -533,6 +539,74 @@ Parents must check and sign the assessment diary daily.</textarea>
               <div id="manageGalleryList" style="display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto;">
                 <!-- Injected dynamically -->
               </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- TAB: ACCOUNT SETTINGS (EMAIL EDIT & PASSWORD CHANGE) -->
+        <section id="tabAccountSettings" class="tab-pane" style="display: none;">
+          <div class="manage-split-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; align-items: start;">
+            
+            <!-- Left: Edit Admin Profile / Email -->
+            <div class="dash-panel" style="margin: 0;">
+              <div class="panel-header" style="margin-bottom: 16px;">
+                <div>
+                  <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; color: #0f1c2e; margin: 0 0 4px 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-user-edit" style="color: #0a4f8a;"></i> Admin Account Profile
+                  </h2>
+                  <div class="panel-sub" style="font-size: 0.82rem;">Update your official staff name and administrator login email.</div>
+                </div>
+              </div>
+
+              <form id="updateProfileForm">
+                <div class="admin-form-group">
+                  <label class="admin-form-label" for="adminProfileName">Staff / Administrator Name</label>
+                  <input type="text" id="adminProfileName" class="admin-form-input" placeholder="e.g. Principal Desk" required>
+                </div>
+
+                <div class="admin-form-group">
+                  <label class="admin-form-label" for="adminProfileEmail">Official Login Email</label>
+                  <input type="email" id="adminProfileEmail" class="admin-form-input" placeholder="e.g. principal@kinderjoyschool.co.in" required>
+                </div>
+
+                <button type="submit" class="btn-dash-primary" style="padding: 11px 24px; font-size: 0.92rem; background: #0a4f8a;">
+                  <i class="fas fa-save"></i> Save Profile Details
+                </button>
+              </form>
+            </div>
+
+            <!-- Right: Change Password -->
+            <div class="dash-panel" style="margin: 0;">
+              <div class="panel-header" style="margin-bottom: 16px;">
+                <div>
+                  <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; color: #0f1c2e; margin: 0 0 4px 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-key" style="color: #b31942;"></i> Change Password
+                  </h2>
+                  <div class="panel-sub" style="font-size: 0.82rem;">Securely update your staff portal login password.</div>
+                </div>
+              </div>
+
+              <form id="changePasswordForm">
+                <div class="admin-form-group">
+                  <label class="admin-form-label" for="currentPassword">Current Password</label>
+                  <input type="password" id="currentPassword" class="admin-form-input" placeholder="Enter existing password" required>
+                </div>
+
+                <div class="admin-form-group">
+                  <label class="admin-form-label" for="newPassword">New Password</label>
+                  <input type="password" id="newPassword" class="admin-form-input" placeholder="Minimum 6 characters" minlength="6" required>
+                </div>
+
+                <div class="admin-form-group">
+                  <label class="admin-form-label" for="confirmNewPassword">Confirm New Password</label>
+                  <input type="password" id="confirmNewPassword" class="admin-form-input" placeholder="Re-type new password" minlength="6" required>
+                </div>
+
+                <button type="submit" class="btn-dash-primary" style="padding: 11px 24px; font-size: 0.92rem; background: #b31942;">
+                  <i class="fas fa-lock"></i> Update Password
+                </button>
+              </form>
             </div>
 
           </div>

@@ -65,8 +65,23 @@
     }
   }
 
+  function showEventsLoadingState() {
+    if (!eventsItemsList) return;
+    eventsItemsList.innerHTML = `
+      <div style="padding: 45px 20px; text-align: center;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2.2rem; color: #0a4f8a; margin-bottom: 12px; display: inline-block;"></i>
+        <h5 style="color: #0f1c2e; margin-bottom: 6px; font-weight: 700; font-family: 'Outfit', sans-serif;">Checking Live School Notices...</h5>
+        <p style="font-size: 0.88rem; color: #64748b; margin: 0;">Loading current circulars and events.</p>
+      </div>
+    `;
+  }
+
   // 2. Fetch live notices asynchronously in the background
   async function fetchLiveNotices() {
+    if (!noticesList || noticesList.length === 0) {
+      showEventsLoadingState();
+    }
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);

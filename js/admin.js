@@ -136,7 +136,128 @@
       window.location.replace('login.html');
     } else {
       loadManageData();
+      loadAdminProfile();
     }
+  }
+
+  // ============================================================
+  // FEATURE: ACCOUNT SETTINGS (EMAIL EDIT & PASSWORD CHANGE)
+  // ============================================================
+  const updateProfileForm = document.getElementById('updateProfileForm');
+  const adminProfileName = document.getElementById('adminProfileName');
+  const adminProfileEmail = document.getElementById('adminProfileEmail');
+  const changePasswordForm = document.getElementById('changePasswordForm');
+  const currentPassword = document.getElementById('currentPassword');
+  const newPassword = document.getElementById('newPassword');
+  const confirmNewPassword = document.getElementById('confirmNewPassword');
+
+  async function loadAdminProfile() {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.admin) {
+          if (adminProfileName) adminProfileName.value = json.admin.name || '';
+          if (adminProfileEmail) adminProfileEmail.value = json.admin.email || '';
+
+          // Update Topbar Profile Display
+          const topbarName = document.querySelector('.dash-user-name');
+          const topbarEmail = document.querySelector('.dash-user-email');
+          if (topbarName) topbarName.textContent = json.admin.name || 'Principal Desk';
+          if (topbarEmail) topbarEmail.textContent = json.admin.email || '';
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load admin profile:', e);
+    }
+  }
+
+  // Handle Profile Update (Email & Name)
+  if (updateProfileForm) {
+    updateProfileForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = localStorage.getItem(TOKEN_KEY);
+      const name = adminProfileName.value.trim();
+      const email = adminProfileEmail.value.trim();
+
+      if (!email) {
+        showStatus('Email is required.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/update-profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, email })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
+          showStatus('Account profile and login email updated successfully!', 'success');
+          loadAdminProfile();
+        } else {
+          showStatus(data.message || 'Failed to update profile.', 'error');
+        }
+      } catch (err) {
+        showStatus('Network error while updating profile.', 'error');
+      }
+    });
+  }
+
+  // Handle Password Change
+  if (changePasswordForm) {
+    changePasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = localStorage.getItem(TOKEN_KEY);
+      const curPwd = currentPassword.value;
+      const newPwd = newPassword.value;
+      const confPwd = confirmNewPassword.value;
+
+      if (!curPwd || !newPwd) {
+        showStatus('Please enter current and new password.', 'error');
+        return;
+      }
+
+      if (newPwd.length < 6) {
+        showStatus('New password must be at least 6 characters long.', 'error');
+        return;
+      }
+
+      if (newPwd !== confPwd) {
+        showStatus('New passwords do not match.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ currentPassword: curPwd, newPassword: newPwd })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showStatus('Password updated successfully! Keep your new password safe.', 'success');
+          changePasswordForm.reset();
+        } else {
+          showStatus(data.message || 'Failed to change password. Verify your current password.', 'error');
+        }
+      } catch (err) {
+        showStatus('Network error while changing password.', 'error');
+      }
+    });
   }
 
   // Handle Logout
@@ -169,6 +290,8 @@
         loadManageData();
       } else if (targetId === 'tabGallery') {
         loadGalleryAdmin();
+      } else if (targetId === 'tabAccountSettings') {
+        loadAdminProfile();
       }
     });
   });
@@ -420,6 +543,9 @@
         return;
       }
 
+      const submitBtn = scheduleForm.querySelector('button[type="submit"]');
+      const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+
       const rows = matrixRowsContainer.querySelectorAll('.schedule-matrix-card');
       const timetable = [];
 
@@ -439,7 +565,7 @@
       });
 
       if (timetable.length === 0) {
-        showStatus('Please provide at least one subject with a Date and Subject Name.', 'error');
+        showStatus('Please provide at least one subject with an Exam Date and Subject Name.', 'error');
         return;
       }
 
@@ -454,8 +580,11 @@
         timetable: timetable
       };
 
-      // 1. Post to backend API first
-      let savedSched = null;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publishing Timetable...';
+      }
+
       try {
         const res = await fetch('/api/schedules', {
           method: 'POST',
@@ -466,32 +595,33 @@
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          const json = await res.json();
-          savedSched = json.data || json;
-        }
-      } catch (e) {}
+        const data = await res.json();
 
-      // 2. Sync to localStorage using consistent identity to guarantee 1 single entry
-      try {
-        const localSchedules = JSON.parse(localStorage.getItem('kj_real_schedules') || '[]');
-        const idx = localSchedules.findIndex(s =>
-          s.academicYear === payload.academicYear &&
-          s.className === payload.className &&
-          s.examType === payload.examType
-        );
-        const schedId = (savedSched && savedSched._id) ? savedSched._id : (idx >= 0 ? localSchedules[idx]._id : ('sched-' + Date.now()));
-        const savedObj = { _id: schedId, ...payload, updatedAt: new Date().toISOString() };
-        if (idx >= 0) {
-          localSchedules[idx] = savedObj;
+        if (res.ok && data.success) {
+          // Success Alert
+          alert(`✅ Examination Timetable for ${payload.className} (${payload.examType}, ${payload.academicYear}) has been published live successfully!`);
+          
+          // Auto refresh page smoothly so all timetable lists, manage tabs, and state refresh cleanly
+          window.location.reload();
         } else {
-          localSchedules.push(savedObj);
+          // Failed: Constant alert, keep all inputs and state intact
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHtml;
+          }
+          const errorMsg = data.message || 'Failed to publish timetable. Please check your inputs and try again.';
+          alert(`❌ Failed to publish timetable:\n\n${errorMsg}`);
+          showStatus(errorMsg, 'error');
         }
-        localStorage.setItem('kj_real_schedules', JSON.stringify(localSchedules));
-      } catch (err) {}
-
-      showStatus(`Timetable for ${payload.className} (${payload.examType}, ${payload.academicYear}) saved live!`, 'success');
-      loadManageData();
+      } catch (err) {
+        // Network or server error: Constant alert, keep all inputs unchanged
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
+        }
+        alert('❌ Network connection error: Unable to reach the server. Your timetable draft remains unchanged. Please check your connection and click Publish again.');
+        showStatus('Connection error. Could not save timetable to server.', 'error');
+      }
     });
   }
 
