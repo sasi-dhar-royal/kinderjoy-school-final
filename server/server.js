@@ -9,6 +9,7 @@ const noticeRoutes = require('./routes/noticeRoutes');
 const scheduleRoutes = require('./routes/scheduleRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
+const visitorRoutes = require('./routes/visitorRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,6 +40,7 @@ app.use('/api/notices', noticeRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/visitors', visitorRoutes);
 
 // Health Check API
 app.get('/api/health', (req, res) => {

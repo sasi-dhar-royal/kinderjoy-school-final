@@ -23,10 +23,12 @@
             let catColor = '';
             if (photo.category === 'science-day') catColor = 'blue';
             else if (photo.category === 'award-ceremony') catColor = 'gold';
+            else if (photo.category === 'festivals') catColor = 'purple';
 
             let catLabel = 'Campus Event';
             if (photo.category === 'annual-day') catLabel = 'Annual Day';
             else if (photo.category === 'science-day') catLabel = 'Science Fair';
+            else if (photo.category === 'festivals') catLabel = 'Festival Celebration';
             else if (photo.category === 'award-ceremony') catLabel = 'Award Ceremony';
             else if (photo.category === 'sports') catLabel = 'Sports Meet';
 

@@ -306,10 +306,41 @@
     }, 5000);
   }
 
+  // Convert any date string (e.g. "17 Nov 2026", "2026-11-17", ISO) to "YYYY-MM-DD" for <input type="date">
+  function parseToInputDate(dateStr) {
+    if (!dateStr) return '';
+    // If already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return dateStr.trim();
+
+    // Check if it's "17 Nov 2026" or similar
+    const monthNames = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+    const textMatch = dateStr.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+    if (textMatch) {
+      const day = String(textMatch[1]).padStart(2, '0');
+      const monStr = textMatch[2].slice(0, 3).toLowerCase();
+      const mon = monthNames[monStr];
+      const year = textMatch[3];
+      if (mon) return `${year}-${mon}-${day}`;
+    }
+
+    // Try standard Date parsing
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      const pd = new Date(parsed);
+      const y = pd.getFullYear();
+      const m = String(pd.getMonth() + 1).padStart(2, '0');
+      const day = String(pd.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    return '';
+  }
+
   // Dynamic Timetable Matrix Row Generator (Clean, spacious, responsive & easy to use)
   function createMatrixRow(date = '', day = '', subject = '', timing = '09:30 AM - 11:30 AM', portion = '') {
     const row = document.createElement('div');
     row.className = 'schedule-matrix-card';
+    const inputDate = parseToInputDate(date);
 
     row.innerHTML = `
       <div class="matrix-card-header">
@@ -323,7 +354,7 @@
         <!-- Date (Calendar Picker with Auto Day Calculation) -->
         <div class="m-field">
           <label class="m-label"><i class="far fa-calendar-alt"></i> Exam Date</label>
-          <input type="date" class="admin-form-input r-date" value="${date}" required>
+          <input type="date" class="admin-form-input r-date" value="${inputDate}" required>
         </div>
 
         <!-- Day of Week (Auto detected from calendar date or overrideable) -->
@@ -360,6 +391,14 @@
     const dateInput = row.querySelector('.r-date');
     const dayInput = row.querySelector('.r-day');
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // If day was not already provided but date exists, calculate it
+    if (!day && inputDate) {
+      const d = new Date(inputDate + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        dayInput.value = DAYS[d.getDay()];
+      }
+    }
 
     dateInput.addEventListener('change', () => {
       if (dateInput.value) {
@@ -462,6 +501,11 @@
 
   let cachedExistingSchedules = [];
 
+  function getDefaultExamInstructions(examType) {
+    const raw = examType ? examType.replace(/[^a-zA-Z0-9]/g, '') : 'SA1';
+    return `Bring a complete stationery pouch; borrowing is strictly prohibited.\nAll the best for your ${raw} Exams.`;
+  }
+
   // Check if current Class + Assessment already has a timetable and auto-load it
   function checkAndAutoLoadExistingSchedule() {
     if (!schedAcademicYear || !schedClass || !schedExamType) return;
@@ -501,8 +545,12 @@
         updateRowNumbers();
       }
       if (schedTitle) schedTitle.value = existing.timingNote || `${type} Assessment - ${cls} Schedule`;
-      if (schedInstructions && existing.instructions) {
-        schedInstructions.value = Array.isArray(existing.instructions) ? existing.instructions.join('\n') : existing.instructions;
+      if (schedInstructions) {
+        if (existing.instructions && (Array.isArray(existing.instructions) ? existing.instructions.length > 0 : existing.instructions.trim())) {
+          schedInstructions.value = Array.isArray(existing.instructions) ? existing.instructions.join('\n') : existing.instructions;
+        } else {
+          schedInstructions.value = getDefaultExamInstructions(type);
+        }
       }
       if (submitBtn) {
         submitBtn.innerHTML = `<i class="fas fa-sync-alt"></i> Update Existing ${type} Timetable for ${cls}`;
@@ -513,6 +561,9 @@
       if (submitBtn) {
         submitBtn.innerHTML = `<i class="fas fa-check-circle"></i> Save &amp; Publish Timetable Live`;
         submitBtn.style.background = '';
+      }
+      if (schedInstructions) {
+        schedInstructions.value = getDefaultExamInstructions(type);
       }
       updateScheduleTitle();
     }

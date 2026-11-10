@@ -12,7 +12,7 @@ const GalleryItemSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['annual-day', 'science-day', 'award-ceremony', 'sports', 'campus'],
+    enum: ['annual-day', 'science-day', 'festivals', 'award-ceremony', 'sports', 'campus'],
     default: 'annual-day'
   },
   imageUrl: {
