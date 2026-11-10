@@ -1,126 +1,83 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const connectDB = require('../config/db');
 const ExamSchedule = require('../models/ExamSchedule');
 const { protect } = require('../middleware/auth');
 
-// In-memory store for instant real-time responses
-let memorySchedules = [];
-
-// GET /api/schedules - Responds instantly in 0ms
+// GET /api/schedules
 router.get('/', async (req, res) => {
   try {
+    await connectDB();
     const { academicYear, examType, className } = req.query;
     let query = {};
     if (academicYear) query.academicYear = academicYear;
     if (examType) query.examType = examType;
     if (className && className !== 'All') query.className = className;
 
-    let schedules = [];
-
-    // Only query Mongo if connected, otherwise return memory data immediately (0ms)
-    if (mongoose.connection.readyState === 1) {
-      try {
-        schedules = await ExamSchedule.find(query).sort({ examType: 1, className: 1 });
-      } catch (dbErr) {
-        schedules = [];
-      }
-    }
-
-    if (!schedules.length) {
-      schedules = memorySchedules.filter(s => {
-        if (academicYear && s.academicYear !== academicYear) return false;
-        if (examType && s.examType !== examType) return false;
-        if (className && className !== 'All' && s.className !== className) return false;
-        return true;
-      });
-    }
-
+    const schedules = await ExamSchedule.find(query).sort({ examType: 1, className: 1 });
     res.json({ success: true, count: schedules.length, data: schedules });
   } catch (error) {
+    console.error('Error fetching schedules:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// GET /api/schedules/years - Instant response
+// GET /api/schedules/years
 router.get('/years', async (req, res) => {
   try {
-    let years = [];
-    if (mongoose.connection.readyState === 1) {
-      try {
-        years = await ExamSchedule.distinct('academicYear');
-      } catch (err) {
-        years = [];
-      }
-    }
-
+    await connectDB();
+    let years = await ExamSchedule.distinct('academicYear');
     if (!years || !years.length) {
-      const memYears = [...new Set(memorySchedules.map(s => s.academicYear).filter(Boolean))];
-      years = memYears.length ? memYears : ["2026-2027"];
+      years = ["2026-2027"];
     }
-
-    res.json({ success: true, data: years });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// POST /api/schedules (Upsert - Protected Admin)
-router.post('/', protect, async (req, res) => {
-  try {
-    const { academicYear, examType, className, timingNote, timetable, instructions } = req.body;
-    if (!examType || !className || !timetable || !timetable.length) {
-      return res.status(400).json({ success: false, message: 'Academic Year, Exam type, Class, and at least one timetable row are required' });
-    }
-
-    const yearVal = academicYear || "2026-2027";
-    const scheduleData = {
-      academicYear: yearVal,
-      examType,
-      className,
-      timingNote: timingNote || "09:30 AM to 12:00 PM",
-      timetable,
-      instructions: instructions && instructions.length ? instructions : [
-        "Students must arrive in proper school uniform with ID cards.",
-        "Bring your own stationery (pens, pencils, erasers)."
-      ],
-      updatedAt: new Date()
-    };
-
-    let result;
-    try {
-      result = await ExamSchedule.findOneAndUpdate(
-        { academicYear: yearVal, examType, className },
-        scheduleData,
-        { new: true, upsert: true }
-      );
-    } catch (dbErr) {
-      const idx = memorySchedules.findIndex(s => s.academicYear === yearVal && s.examType === examType && s.className === className);
-      if (idx >= 0) {
-        memorySchedules[idx] = { ...memorySchedules[idx], ...scheduleData };
-        result = memorySchedules[idx];
-      } else {
-        result = { _id: 'sched-' + Date.now(), ...scheduleData };
-        memorySchedules.push(result);
-      }
-    }
-
-    res.status(200).json({ success: true, data: result });
+    res.json({ success: true, count: years.length, data: years });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// DELETE /api/schedules/:id (Protected Admin)
+// POST /api/schedules (Protected)
+router.post('/', protect, async (req, res) => {
+  try {
+    await connectDB();
+    const { academicYear, className, examType, timingNote, instructions, timetable } = req.body;
+
+    if (!academicYear || !className || !examType || !timetable || !timetable.length) {
+      return res.status(400).json({ success: false, message: 'Please provide all required schedule fields and at least one timetable row.' });
+    }
+
+    const schedule = await ExamSchedule.findOneAndUpdate(
+      { academicYear, className, examType },
+      {
+        academicYear,
+        className,
+        examType,
+        timingNote: timingNote || `${examType} Assessment - ${className} Schedule`,
+        instructions: instructions || [],
+        timetable,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(201).json({ success: true, data: schedule });
+  } catch (error) {
+    console.error('Error saving schedule:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/schedules/:id (Protected)
 router.delete('/:id', protect, async (req, res) => {
   try {
-    try {
-      await ExamSchedule.findByIdAndDelete(req.params.id);
-    } catch (dbErr) {
-      memorySchedules = memorySchedules.filter(s => s._id !== req.params.id);
+    await connectDB();
+    const schedule = await ExamSchedule.findByIdAndDelete(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: 'Schedule not found' });
     }
-    res.json({ success: true, message: 'Schedule deleted successfully' });
+    res.json({ success: true, message: 'Exam timetable deleted successfully' });
   } catch (error) {
+    console.error('Error deleting schedule:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

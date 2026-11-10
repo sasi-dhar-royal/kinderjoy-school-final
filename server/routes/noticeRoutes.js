@@ -1,15 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const connectDB = require('../config/db');
 const Notice = require('../models/Notice');
 const { protect } = require('../middleware/auth');
 
-// In-memory store for instant real-time operations
-let memoryNotices = [];
-
-// GET /api/notices - Responds instantly in 0ms
+// GET /api/notices
 router.get('/', async (req, res) => {
   try {
+    await connectDB();
     const { type, category, targetClass } = req.query;
     let query = {};
     if (type) query.type = type;
@@ -18,28 +16,10 @@ router.get('/', async (req, res) => {
       query.targetClasses = { $in: ['All', targetClass] };
     }
 
-    let notices = [];
-    if (mongoose.connection.readyState === 1) {
-      try {
-        notices = await Notice.find(query).sort({ isUrgent: -1, publishDate: -1 });
-      } catch (dbErr) {
-        notices = [];
-      }
-    }
-
-    if (!notices.length) {
-      notices = memoryNotices.filter(n => {
-        if (type && n.type !== type) return false;
-        if (category && n.category !== category) return false;
-        if (targetClass && targetClass !== 'All') {
-          return n.targetClasses.includes('All') || n.targetClasses.includes(targetClass);
-        }
-        return true;
-      });
-    }
-
+    const notices = await Notice.find(query).sort({ isUrgent: -1, publishDate: -1 });
     res.json({ success: true, count: notices.length, data: notices });
   } catch (error) {
+    console.error('Error fetching notices:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -47,35 +27,30 @@ router.get('/', async (req, res) => {
 // POST /api/notices (Protected)
 router.post('/', protect, async (req, res) => {
   try {
+    await connectDB();
     const { title, content, type, category, targetClasses, isUrgent, eventDate, attachmentUrl } = req.body;
+
     if (!title || !content) {
-      return res.status(400).json({ success: false, message: 'Title and content are required' });
+      return res.status(400).json({ success: false, message: 'Please provide title and content' });
     }
 
-    const newNotice = {
+    let validCategory = category || 'General';
+    let validType = type || 'event';
+
+    const notice = await Notice.create({
       title,
       content,
-      type: type || 'news',
-      category: category || 'General',
-      targetClasses: targetClasses && targetClasses.length ? targetClasses : ['All'],
+      type: validType,
+      category: validCategory,
+      targetClasses: targetClasses || ['All'],
+      isUrgent: isUrgent || false,
       eventDate: eventDate ? new Date(eventDate) : new Date(),
-      isUrgent: !!isUrgent,
-      attachmentUrl: attachmentUrl || '',
-      publishDate: new Date()
-    };
+      attachmentUrl: attachmentUrl || ''
+    });
 
-    let result;
-    try {
-      result = await Notice.create(newNotice);
-      console.log(`✅ Notice saved to MongoDB Atlas: ${result._id}`);
-    } catch (dbErr) {
-      console.warn(`⚠️ Notice DB save warning: ${dbErr.message}`);
-      result = { _id: 'notice-' + Date.now(), ...newNotice };
-      memoryNotices.unshift(result);
-    }
-
-    res.status(201).json({ success: true, data: result });
+    res.status(201).json({ success: true, data: notice });
   } catch (error) {
+    console.error('Error creating notice:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -83,37 +58,24 @@ router.post('/', protect, async (req, res) => {
 // PUT /api/notices/:id (Protected)
 router.put('/:id', protect, async (req, res) => {
   try {
-    const { title, content, type, category, targetClasses, isUrgent, eventDate, attachmentUrl } = req.body;
+    await connectDB();
+    const { title, content, type, category, targetClasses, isUrgent, eventDate } = req.body;
     const updateData = {};
-    if (title !== undefined) updateData.title = title;
-    if (content !== undefined) updateData.content = content;
-    if (type !== undefined) updateData.type = type;
-    if (category !== undefined) updateData.category = category;
-    if (targetClasses !== undefined) updateData.targetClasses = targetClasses;
-    if (isUrgent !== undefined) updateData.isUrgent = !!isUrgent;
-    if (eventDate !== undefined) updateData.eventDate = eventDate ? new Date(eventDate) : null;
-    if (attachmentUrl !== undefined) updateData.attachmentUrl = attachmentUrl;
+    if (title) updateData.title = title;
+    if (content) updateData.content = content;
+    if (type) updateData.type = type;
+    if (category) updateData.category = category;
+    if (targetClasses) updateData.targetClasses = targetClasses;
+    if (typeof isUrgent === 'boolean') updateData.isUrgent = isUrgent;
+    if (eventDate) updateData.eventDate = new Date(eventDate);
 
-    let updatedDoc = null;
-    try {
-      updatedDoc = await Notice.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
-      if (updatedDoc) {
-        console.log(`✅ Notice updated in MongoDB Atlas: ${updatedDoc._id}`);
-      }
-    } catch (dbErr) {
-      console.warn(`⚠️ Notice update warning: ${dbErr.message}`);
+    const updated = await Notice.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Notice not found' });
     }
-
-    if (!updatedDoc) {
-      const idx = memoryNotices.findIndex(n => n._id === req.params.id);
-      if (idx !== -1) {
-        memoryNotices[idx] = { ...memoryNotices[idx], ...updateData };
-        updatedDoc = memoryNotices[idx];
-      }
-    }
-
-    res.json({ success: true, data: updatedDoc || { _id: req.params.id, ...updateData } });
+    res.json({ success: true, data: updated });
   } catch (error) {
+    console.error('Error updating notice:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -121,16 +83,16 @@ router.put('/:id', protect, async (req, res) => {
 // DELETE /api/notices/:id (Protected)
 router.delete('/:id', protect, async (req, res) => {
   try {
-    try {
-      await Notice.findByIdAndDelete(req.params.id);
-    } catch (dbErr) {
-      memoryNotices = memoryNotices.filter(n => n._id !== req.params.id);
+    await connectDB();
+    const notice = await Notice.findByIdAndDelete(req.params.id);
+    if (!notice) {
+      return res.status(404).json({ success: false, message: 'Notice not found' });
     }
     res.json({ success: true, message: 'Notice deleted successfully' });
   } catch (error) {
+    console.error('Error deleting notice:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 module.exports = router;
-
