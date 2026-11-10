@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const connectDB = require('../config/db');
 const Admin = require('../models/Admin');
 
 // POST /api/auth/login
@@ -10,6 +11,9 @@ router.post('/login', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
     }
+
+    // Ensure database is connected (essential for Vercel serverless cold starts)
+    await connectDB();
 
     // Authenticate strictly against MongoDB Atlas
     const admin = await Admin.findOne({ email: email.toLowerCase() });
@@ -37,9 +41,9 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 module.exports = router;
-
