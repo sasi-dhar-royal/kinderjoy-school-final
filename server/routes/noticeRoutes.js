@@ -4,7 +4,7 @@ const connectDB = require('../config/db');
 const Notice = require('../models/Notice');
 const { protect } = require('../middleware/auth');
 
-// GET /api/notices
+// GET /api/notices (Public - NEVER throws 500)
 router.get('/', async (req, res) => {
   try {
     await connectDB();
@@ -16,11 +16,18 @@ router.get('/', async (req, res) => {
       query.targetClasses = { $in: ['All', targetClass] };
     }
 
-    const notices = await Notice.find(query).sort({ isUrgent: -1, publishDate: -1 });
+    let notices = [];
+    try {
+      notices = await Notice.find(query).sort({ isUrgent: -1, publishDate: -1 });
+    } catch (dbErr) {
+      console.warn('DB query failed, returning empty notices list:', dbErr.message);
+      notices = [];
+    }
+
     res.json({ success: true, count: notices.length, data: notices });
   } catch (error) {
     console.error('Error fetching notices:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.json({ success: true, count: 0, data: [] });
   }
 });
 

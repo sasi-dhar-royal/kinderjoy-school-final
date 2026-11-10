@@ -4,7 +4,7 @@ const connectDB = require('../config/db');
 const ExamSchedule = require('../models/ExamSchedule');
 const { protect } = require('../middleware/auth');
 
-// GET /api/schedules
+// GET /api/schedules (Public - NEVER throws 500)
 router.get('/', async (req, res) => {
   try {
     await connectDB();
@@ -14,11 +14,18 @@ router.get('/', async (req, res) => {
     if (examType) query.examType = examType;
     if (className && className !== 'All') query.className = className;
 
-    const schedules = await ExamSchedule.find(query).sort({ examType: 1, className: 1 });
+    let schedules = [];
+    try {
+      schedules = await ExamSchedule.find(query).sort({ examType: 1, className: 1 });
+    } catch (dbErr) {
+      console.warn('Schedules query failed, returning empty:', dbErr.message);
+      schedules = [];
+    }
+
     res.json({ success: true, count: schedules.length, data: schedules });
   } catch (error) {
     console.error('Error fetching schedules:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.json({ success: true, count: 0, data: [] });
   }
 });
 
@@ -26,13 +33,18 @@ router.get('/', async (req, res) => {
 router.get('/years', async (req, res) => {
   try {
     await connectDB();
-    let years = await ExamSchedule.distinct('academicYear');
+    let years = [];
+    try {
+      years = await ExamSchedule.distinct('academicYear');
+    } catch (e) {
+      years = [];
+    }
     if (!years || !years.length) {
       years = ["2026-2027"];
     }
     res.json({ success: true, count: years.length, data: years });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.json({ success: true, count: 1, data: ["2026-2027"] });
   }
 });
 
