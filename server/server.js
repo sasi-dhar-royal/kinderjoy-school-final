@@ -70,21 +70,17 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(staticDir, 'admin.html'));
 });
 
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ success: false, message: 'API route not found' });
-  }
-  res.sendFile(path.join(staticDir, 'index.html'));
-});
+// Only listen when executed directly, not inside Vercel Serverless Function
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`=================================================`);
+    console.log(`🏫 Kinder Joy School Portal Server Running!`);
+    console.log(`📡 URL: http://localhost:${PORT}`);
+    console.log(`🔑 Login: http://localhost:${PORT}/login.html`);
+    console.log(`🔐 Admin: http://localhost:${PORT}/admin.html`);
+    console.log(`📋 Notices Portal: http://localhost:${PORT}/notices.html`);
+    console.log(`=================================================`);
+  });
+}
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`=================================================`);
-  console.log(`🏫 Kinder Joy School Portal Server Running!`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`🔑 Login: http://localhost:${PORT}/login.html`);
-  console.log(`🔐 Admin: http://localhost:${PORT}/admin.html`);
-  console.log(`📋 Notices Portal: http://localhost:${PORT}/notices.html`);
-  console.log(`=================================================`);
-});
-
+module.exports = app;
