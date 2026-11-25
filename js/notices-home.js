@@ -42,23 +42,38 @@
     return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
   }
 
-  // 1. Load from localStorage synchronously (0ms latency)
+  // Default fallback notices shown instantly (0ms) so users NEVER see an empty spinner
+  const DEFAULT_INITIAL_NOTICES = [
+    {
+      _id: 'notice-initial-1',
+      title: 'SA1 Exams',
+      category: 'Exam',
+      type: 'exam',
+      eventDate: '2026-11-11T00:00:00.000Z',
+      postedAt: '2026-11-10T12:19:00.000Z',
+      content: 'The exam timetable is published for SA1 exams. Please check the notices portal for detailed schedules and timings.',
+      redirectUrl: 'notices.html?exam=SA-1'
+    }
+  ];
+
+  // 1. Load from localStorage or initial fallback synchronously (0ms latency)
   function loadLocalNotices() {
     try {
-      const localSaved = JSON.parse(localStorage.getItem('kj_real_notices') || '[]');
-      if (Array.isArray(localSaved) && localSaved.length > 0) {
-        noticesList = localSaved.map(item => ({
-          _id: item._id || item.id,
-          title: item.title,
-          category: item.category || 'General',
-          type: item.type || 'news',
-          eventDate: item.eventDate || item.publishDate,
-          postedAt: item.publishDate || item.createdAt || new Date().toISOString(),
-          content: item.content || '',
-          redirectUrl: (item.category && item.category.toLowerCase() === 'exam') ? 'notices.html?exam=FA-2' : 'notices.html'
-        }));
-      }
-    } catch (e) {}
+      const localSaved = JSON.parse(localStorage.getItem('kj_real_notices') || 'null');
+      const source = (Array.isArray(localSaved) && localSaved.length > 0) ? localSaved : DEFAULT_INITIAL_NOTICES;
+      noticesList = source.map(item => ({
+        _id: item._id || item.id,
+        title: item.title,
+        category: item.category || 'General',
+        type: item.type || 'news',
+        eventDate: item.eventDate || item.publishDate,
+        postedAt: item.publishDate || item.createdAt || new Date().toISOString(),
+        content: item.content || '',
+        redirectUrl: (item.category && item.category.toLowerCase() === 'exam') ? 'notices.html?exam=SA-1' : 'notices.html'
+      }));
+    } catch (e) {
+      noticesList = [...DEFAULT_INITIAL_NOTICES];
+    }
 
     if (updatesCountPill) {
       updatesCountPill.textContent = `${noticesList.length} latest updates`;
