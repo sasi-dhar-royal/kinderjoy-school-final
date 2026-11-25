@@ -6,6 +6,8 @@ const { protect } = require('../middleware/auth');
 
 // GET /api/notices (Public - NEVER throws 500)
 router.get('/', async (req, res) => {
+  // Cache response at edge for 30s to make it instantaneous on Vercel
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
   try {
     await connectDB();
     const { type, category, targetClass } = req.query;

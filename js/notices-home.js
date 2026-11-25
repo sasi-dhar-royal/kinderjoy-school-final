@@ -84,9 +84,9 @@
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-      const res = await fetch('/api/notices', { cache: 'no-cache', signal: controller.signal });
+      const res = await fetch('/api/notices', { cache: 'default', signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (res.ok) {

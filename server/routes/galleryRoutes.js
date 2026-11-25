@@ -42,6 +42,7 @@ const upload = multer({
 
 // GET /api/gallery (Public - NEVER throws 500)
 router.get('/', async (req, res) => {
+  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
   try {
     await connectDB();
     const { category } = req.query;

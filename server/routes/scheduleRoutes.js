@@ -6,6 +6,7 @@ const { protect } = require('../middleware/auth');
 
 // GET /api/schedules (Public - NEVER throws 500)
 router.get('/', async (req, res) => {
+  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
   try {
     await connectDB();
     const { academicYear, examType, className } = req.query;
